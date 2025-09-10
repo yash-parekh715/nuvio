@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { prisma } = require("../config/database");
+const ApiResponse = require("../utils/responseFormatter");
 
 // Middleware to verify JWT
 exports.protect = async (req, res, next) => {
@@ -15,7 +16,7 @@ exports.protect = async (req, res, next) => {
     }
 
     if (!token) {
-      return res.status(401).json({ message: "Not authorized, no token" });
+      return ApiResponse.unauthorized(res, "Not authorized, no token");
     }
 
     // Verify token
@@ -33,16 +34,14 @@ exports.protect = async (req, res, next) => {
     });
 
     if (!user) {
-      return res.status(401).json({ message: "User not found" });
+      return ApiResponse.unauthorized(res, "User not found");
     }
 
     req.user = user;
     next();
   } catch (error) {
     console.error("Auth middleware error:", error);
-    return res
-      .status(401)
-      .json({ message: "Not authorized", error: error.message });
+    return ApiResponse.unauthorized(res, "Not authorized", error.message);
   }
 };
 
@@ -50,13 +49,14 @@ exports.protect = async (req, res, next) => {
 exports.authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ message: "Not authorized, no user" });
+      return ApiResponse.unauthorized(res, "Not authorized, no user");
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        message: `Role ${req.user.role} is not authorized to access this resource`,
-      });
+      return ApiResponse.forbidden(
+        res,
+        `Role ${req.user.role} is not authorized to access this resource`
+      );
     }
 
     next();

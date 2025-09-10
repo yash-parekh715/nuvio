@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { prisma } = require("../config/database");
+const ApiResponse = require("../utils/responseFormatter");
 
 // Register a new user
 exports.register = async (req, res) => {
@@ -13,7 +14,7 @@ exports.register = async (req, res) => {
     });
 
     if (userExists) {
-      return res.status(400).json({ message: "User already exists" });
+      return ApiResponse.badRequest(res, "User already exists");
     }
 
     // Hash password
@@ -38,21 +39,14 @@ exports.register = async (req, res) => {
 
     const token = generateToken(user.id, user.role);
 
-    res.status(201).json({
-      message: "User registered successfully",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-      token,
-    });
+    return ApiResponse.created(
+      res,
+      { user, token },
+      "User registered successfully"
+    );
   } catch (error) {
     console.error("Register error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    return ApiResponse.serverError(res, "Internal Server Error", error.message);
   }
 };
 
@@ -67,32 +61,33 @@ exports.login = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return ApiResponse.unauthorized(res, "Invalid credentials");
     }
 
     // Check if password matches
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return ApiResponse.unauthorized(res, "Invalid credentials");
     }
 
     const token = generateToken(user.id, user.role);
 
-    res.status(200).json({
-      message: "Login successful",
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
+    return ApiResponse.ok(
+      res,
+      {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+        token,
       },
-      token,
-    });
+      "Login successful"
+    );
   } catch (error) {
     console.error("Login error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    return ApiResponse.serverError(res, "Internal Server Error", error.message);
   }
 };
 
