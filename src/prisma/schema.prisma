@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  name      String
+  role      Role      @default(USER)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  events    Event[]   @relation("CreatedEvents")
+  bookings  Booking[]
+
+  @@map("users")
+}
+
+model Event {
+  id                String      @id @default(uuid())
+  name              String
+  description       String
+  category          String
+  venueName         String      @map("venue_name")
+  venueAddress      String      @map("venue_address")
+  venueCity         String      @map("venue_city")
+  venueState        String      @map("venue_state")
+  venueCountry      String      @map("venue_country")
+  venuePincode      String      @map("venue_pincode")
+  venueCoordinates  String?     @map("venue_coordinates")
+  startTime         DateTime    @map("start_time")
+  endTime           DateTime    @map("end_time")
+  totalCapacity     Int         @map("total_capacity")
+  availableCapacity Int         @map("available_capacity")
+  price             Decimal     @db.Decimal(10, 2)
+  status            EventStatus @default(ACTIVE)
+  createdBy         String      @map("created_by")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  creator           User        @relation("CreatedEvents", fields: [createdBy], references: [id])
+  bookings          Booking[]
+
+  @@index([startTime])
+  @@map("events")
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  userId      String        @map("user_id")
+  eventId     String        @map("event_id")
+  ticketCount Int           @map("ticket_count")
+  totalPrice  Decimal       @map("total_price") @db.Decimal(10, 2)
+  status      BookingStatus @default(CONFIRMED)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  user        User          @relation(fields: [userId], references: [id])
+  event       Event         @relation(fields: [eventId], references: [id])
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([eventId, status])
+  @@map("bookings")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum EventStatus {
+  ACTIVE
+  CANCELLED
+  COMPLETED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
