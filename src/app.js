@@ -3,6 +3,7 @@ const morgan = require("morgan");
 const { connectDB } = require("./config/database");
 const authRoutes = require("./routes/auth.routes");
 const ApiResponse = require("./utils/responseFormatter");
+const { apiLimiter } = require("./middlewares/rateLimiter");
 
 // Initialize express app
 const app = express();
@@ -10,6 +11,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(morgan("dev"));
+app.use(apiLimiter);
 
 // Routes
 app.use("/api/auth", authRoutes);

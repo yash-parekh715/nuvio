@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const { prisma } = require("../config/database");
 const ApiResponse = require("../utils/responseFormatter");
 
+
 // Middleware to verify JWT
 exports.protect = async (req, res, next) => {
   try {
