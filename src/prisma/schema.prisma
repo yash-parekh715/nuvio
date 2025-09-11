@@ -39,6 +39,7 @@ model Event {
   totalCapacity     Int         @map("total_capacity")
   availableCapacity Int         @map("available_capacity")
   price             Decimal     @db.Decimal(10, 2)
+  isBookingEnabled  Boolean     @default(true) @map("is_booking_enabled")
   status            EventStatus @default(ACTIVE)
   createdBy         String      @map("created_by")
   createdAt         DateTime    @default(now()) @map("created_at")
