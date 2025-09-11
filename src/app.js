@@ -1,9 +1,13 @@
 const express = require("express");
 const morgan = require("morgan");
+
 const { connectDB } = require("./config/database");
-const authRoutes = require("./routes/auth.routes");
 const ApiResponse = require("./utils/responseFormatter");
 const { apiLimiter } = require("./middlewares/rateLimiter");
+
+const authRoutes = require("./routes/auth.routes");
+const adminRoutes = require("./routes/admin");
+const userEventRoutes = require("./routes/user/event.routes");
 
 // Initialize express app
 const app = express();
@@ -15,6 +19,8 @@ app.use(apiLimiter);
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/events", userEventRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
