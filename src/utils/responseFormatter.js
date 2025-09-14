@@ -55,6 +55,18 @@ class ApiResponse {
   static serverError(res, message = "Internal server error", errors = null) {
     return this.error(res, 500, message, errors);
   }
+
+  /**
+   * Send OK response with cache headers for static data
+   * @param {Object} res - Express response object
+   * @param {any} data - Response data
+   * @param {string} message - Response message
+   * @param {number} maxAge - Cache max age in seconds
+   */
+  static okWithCache(res, data = null, message = "Success", maxAge = 300) {
+    res.set("Cache-Control", `public, max-age=${maxAge}`);
+    return this.success(res, 200, message, data);
+  }
 }
 
 module.exports = ApiResponse;
