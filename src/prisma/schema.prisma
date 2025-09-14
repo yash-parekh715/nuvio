@@ -52,21 +52,66 @@ model Event {
 }
 
 model Booking {
-  id          String        @id @default(uuid())
-  userId      String        @map("user_id")
-  eventId     String        @map("event_id")
-  ticketCount Int           @map("ticket_count")
-  totalPrice  Decimal       @map("total_price") @db.Decimal(10, 2)
-  status      BookingStatus @default(CONFIRMED)
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  user        User          @relation(fields: [userId], references: [id])
-  event       Event         @relation(fields: [eventId], references: [id])
+  id                 String         @id @default(uuid())
+  userId             String         @map("user_id")
+  eventId            String         @map("event_id")
+  ticketCount        Int            @map("ticket_count")
+  totalPrice         Decimal        @map("total_price") @db.Decimal(10, 2)
+  status             BookingStatus  @default(RESERVED)
+  reservationExpiry  DateTime?      @map("reservation_expiry")
+  paymentIntentId    String?        @map("payment_intent_id")
+  refundAmount       Decimal?       @map("refund_amount") @db.Decimal(10, 2)
+  refundId           String?        @map("refund_id")
+  refundStatus       String?        @map("refund_status")
+  refundedAt         DateTime?      @map("refunded_at")
+  paymentProcessing  Boolean        @default(false) @map("payment_processing")
+  paymentInitiatedAt DateTime?      @map("payment_initiated_at")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  user               User           @relation(fields: [userId], references: [id])
+  event              Event          @relation(fields: [eventId], references: [id])
+  PaymentIntent      PaymentIntent?
 
   @@index([userId])
   @@index([eventId])
   @@index([eventId, status])
+  @@index([reservationExpiry])
   @@map("bookings")
+}
+
+// Add these models to your schema
+model PaymentIntent {
+  id            String    @id
+  clientSecret  String
+  status        String    @default("created")
+  amount        Decimal   @db.Decimal(10, 2)
+  currency      String    @default("inr")
+  paymentMethod String
+  metadata      Json?
+  error         Json?
+  created       DateTime  @default(now())
+  expiresAt     DateTime?
+
+  // Relationships
+  booking       Booking? @relation(fields: [reservationId], references: [id])
+  reservationId String?  @unique @map("reservation_id")
+  refund        Refund?
+
+  @@map("payment_intents")
+}
+
+model Refund {
+  id      String   @id
+  amount  Decimal  @db.Decimal(10, 2)
+  status  String
+  reason  String?
+  created DateTime @default(now())
+
+  // Relationships
+  paymentIntent   PaymentIntent @relation(fields: [paymentIntentId], references: [id])
+  paymentIntentId String        @unique @map("payment_intent_id")
+
+  @@map("refunds")
 }
 
 enum Role {
@@ -81,6 +126,8 @@ enum EventStatus {
 }
 
 enum BookingStatus {
+  RESERVED
   CONFIRMED
   CANCELLED
+  PAYMENT_FAILED
 }
