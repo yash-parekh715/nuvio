@@ -1,13 +1,15 @@
 const express = require("express");
 const morgan = require("morgan");
 
-const { connectDB } = require("./config/database");
 const ApiResponse = require("./utils/responseFormatter");
 const { apiLimiter } = require("./middlewares/rateLimiter");
 
-const authRoutes = require("./routes/auth.routes");
+const authRoutes = require("./routes/auth/auth.routes");
 const adminRoutes = require("./routes/admin");
 const userEventRoutes = require("./routes/user/event.routes");
+const userBookingRoutes = require("./routes/user/booking.routes");
+const paymentRoutes = require("./routes/user/payment.routes");
+const userProfileRoutes = require("./routes/user/userProfile.routes");
 
 // Initialize express app
 const app = express();
@@ -16,11 +18,13 @@ const app = express();
 app.use(express.json());
 app.use(morgan("dev"));
 app.use(apiLimiter);
-
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/events", userEventRoutes);
+app.use("/api/bookings", userBookingRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/user/profile", userProfileRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
