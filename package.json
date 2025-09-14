@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
+    "build": "npm install && npx prisma generate --schema=./src/prisma/schema.prisma && mkdir -p dist/docs && cp -r src/docs/* dist/docs/",
     "start": "node server.js"
   },
   "keywords": [],
@@ -25,7 +26,9 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",
     "nodemon": "^3.1.10",
-    "redis": "^5.0.0-next.7"
+    "redis": "^5.0.0-next.7",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "prisma": "^6.16.0"

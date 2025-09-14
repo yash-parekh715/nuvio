@@ -11,9 +11,4 @@ const {
 router.post("/register", createAccountLimiter, authController.register);
 router.post("/login", authLimiter, authController.login);
 
-// Protected routes
-router.get("/me", protect, (req, res) => {
-  res.json({ user: req.user });
-});
-
 module.exports = router;

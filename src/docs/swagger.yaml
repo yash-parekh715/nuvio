@@ -1,0 +1,1379 @@
+openapi: 3.0.0
+info:
+  title: Evently API
+  description: |
+    API for the Evently platform - an event booking system that handles concurrency,
+    prevents overselling, scales during traffic spikes, and provides analytics.
+  version: 1.0.0
+  contact:
+    name: Evently Support
+servers:
+  - url: https://evently-vsyz.onrender.com
+    description: Production server
+  - url: http://localhost:3000
+    description: Local development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [USER, ADMIN]
+        createdAt:
+          type: string
+          format: date-time
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        venueName:
+          type: string
+        venueAddress:
+          type: string
+        venueCity:
+          type: string
+        venueState:
+          type: string
+        venueCountry:
+          type: string
+        venuePincode:
+          type: string
+        venueCoordinates:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        totalCapacity:
+          type: integer
+        availableCapacity:
+          type: integer
+        price:
+          type: number
+          format: float
+        isBookingEnabled:
+          type: boolean
+        status:
+          type: string
+          enum: [ACTIVE, CANCELLED, COMPLETED]
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        ticketCount:
+          type: integer
+        totalPrice:
+          type: number
+          format: float
+        status:
+          type: string
+          enum:
+            [
+              RESERVED,
+              CONFIRMED,
+              CANCELLED,
+              PAYMENT_FAILED,
+              CANCELLATION_PENDING,
+            ]
+        reservationExpiry:
+          type: string
+          format: date-time
+        event:
+          $ref: "#/components/schemas/Event"
+
+    PaymentIntent:
+      type: object
+      properties:
+        paymentIntentId:
+          type: string
+        clientSecret:
+          type: string
+        amount:
+          type: number
+          format: float
+        reservationId:
+          type: string
+          format: uuid
+        expiresAt:
+          type: string
+          format: date-time
+
+    BookingStats:
+      type: object
+      properties:
+        bookings:
+          type: object
+          properties:
+            total:
+              type: integer
+            confirmed:
+              type: integer
+            cancelled:
+              type: integer
+            reserved:
+              type: integer
+        totalSpent:
+          type: number
+          format: float
+        upcomingEvents:
+          type: array
+          items:
+            type: object
+            properties:
+              bookingId:
+                type: string
+              eventId:
+                type: string
+              eventName:
+                type: string
+              ticketCount:
+                type: integer
+              startTime:
+                type: string
+                format: date-time
+              venue:
+                type: string
+
+    AnalyticsData:
+      type: object
+      properties:
+        totalBookings:
+          type: integer
+        confirmedBookings:
+          type: integer
+        cancelledBookings:
+          type: integer
+        totalRevenue:
+          type: number
+          format: float
+        topEvents:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              venue:
+                type: string
+              bookingCount:
+                type: integer
+              utilization:
+                type: number
+                format: float
+
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        statusCode:
+          type: integer
+        message:
+          type: string
+        data:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        statusCode:
+          type: integer
+        message:
+          type: string
+        errors:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Authentication Routes
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                  example: "John Doe"
+                email:
+                  type: string
+                  format: email
+                  example: "john@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "SecurePassword123"
+                role:
+                  type: string
+                  enum: [USER, ADMIN]
+                  default: USER
+                  example: "USER"
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: "#/components/schemas/User"
+                          token:
+                            type: string
+        "400":
+          description: User already exists or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Too many requests, rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Log in user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "john@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "SecurePassword123"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: "#/components/schemas/User"
+                          token:
+                            type: string
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Too many login attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # Event Routes (Common)
+  /api/events:
+    get:
+      tags:
+        - Events
+      summary: Get all events with pagination and filtering
+      security: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: Page number for pagination
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+          description: Number of events per page
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [ACTIVE, CANCELLED, COMPLETED]
+          description: Filter by event status
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: Filter by event category
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by event name, description, or venue
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          events:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/Event"
+                          pagination:
+                            type: object
+                            properties:
+                              page:
+                                type: integer
+                              limit:
+                                type: integer
+                              totalCount:
+                                type: integer
+                              totalPages:
+                                type: integer
+                              hasNextPage:
+                                type: boolean
+                              hasPrevPage:
+                                type: boolean
+
+  /api/events/{id}:
+    get:
+      tags:
+        - Events
+      summary: Get event by ID
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Event ID
+      responses:
+        "200":
+          description: Event details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Event"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # Booking Routes
+  /api/bookings/reserve:
+    post:
+      tags:
+        - Bookings
+      summary: Create a temporary reservation for tickets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventId
+                - ticketCount
+              properties:
+                eventId:
+                  type: string
+                  format: uuid
+                ticketCount:
+                  type: integer
+                  minimum: 1
+                  maximum: 4
+      responses:
+        "201":
+          description: Reservation created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          reservationId:
+                            type: string
+                          eventId:
+                            type: string
+                          eventName:
+                            type: string
+                          ticketCount:
+                            type: integer
+                          totalPrice:
+                            type: number
+                          expiresAt:
+                            type: string
+                            format: date-time
+                          timeLeftMinutes:
+                            type: integer
+        "400":
+          description: Invalid request or not enough tickets available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Too many reservation attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/bookings:
+    get:
+      tags:
+        - Bookings
+      summary: Get all bookings for the current user
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: Page number for pagination
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+          description: Number of bookings per page
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [RESERVED, CONFIRMED, CANCELLED]
+          description: Filter by booking status
+        - in: query
+          name: timeframe
+          schema:
+            type: string
+            enum: [upcoming, past]
+          description: Filter by timeframe
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum: [createdAt, eventDate]
+            default: createdAt
+          description: Sort by field
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          description: Sort order
+      responses:
+        "200":
+          description: User bookings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          bookings:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/Booking"
+                          pagination:
+                            type: object
+                            properties:
+                              page:
+                                type: integer
+                              limit:
+                                type: integer
+                              totalCount:
+                                type: integer
+                              totalPages:
+                                type: integer
+                              hasNextPage:
+                                type: boolean
+                              hasPrevPage:
+                                type: boolean
+
+  /api/bookings/{id}:
+    get:
+      tags:
+        - Bookings
+      summary: Get a booking by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Booking ID
+      responses:
+        "200":
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Booking"
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/bookings/{id}/cancel:
+    patch:
+      tags:
+        - Bookings
+      summary: Cancel a booking or reservation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Booking ID
+      responses:
+        "200":
+          description: Booking cancelled successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          booking:
+                            $ref: "#/components/schemas/Booking"
+                          refund:
+                            type: object
+                            properties:
+                              processed:
+                                type: boolean
+                              amount:
+                                type: number
+                              status:
+                                type: string
+                              id:
+                                type: string
+        "400":
+          description: Booking cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/bookings/{id}/payment:
+    get:
+      tags:
+        - Bookings
+      summary: Get payment options for a reservation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Reservation ID
+      responses:
+        "200":
+          description: Payment options
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          reservationId:
+                            type: string
+                          eventName:
+                            type: string
+                          eventDate:
+                            type: string
+                            format: date-time
+                          amount:
+                            type: number
+                          expiresAt:
+                            type: string
+                            format: date-time
+                          timeLeftSeconds:
+                            type: integer
+                          paymentMethods:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                name:
+                                  type: string
+        "400":
+          description: Invalid reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Reservation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # Payment Routes
+  /api/payments/create-intent:
+    post:
+      tags:
+        - Payments
+      summary: Create a payment intent for a reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reservationId
+              properties:
+                reservationId:
+                  type: string
+                  format: uuid
+                paymentMethod:
+                  type: string
+                  enum: [card, upi, netbanking]
+                  default: card
+      responses:
+        "200":
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          clientSecret:
+                            type: string
+                          paymentIntentId:
+                            type: string
+                          amount:
+                            type: number
+                          reservationId:
+                            type: string
+                          expiresAt:
+                            type: string
+                            format: date-time
+        "400":
+          description: Invalid reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Reservation not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/payments/process:
+    post:
+      tags:
+        - Payments
+      summary: Process a payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - paymentIntentId
+              properties:
+                paymentIntentId:
+                  type: string
+                shouldSucceed:
+                  type: boolean
+                  default: true
+      responses:
+        "200":
+          description: Payment processed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          success:
+                            type: boolean
+                          paymentIntentId:
+                            type: string
+                          status:
+                            type: string
+        "400":
+          description: Payment processing failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/payments/confirm:
+    post:
+      tags:
+        - Payments
+      summary: Confirm payment and booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - paymentIntentId
+                - reservationId
+              properties:
+                paymentIntentId:
+                  type: string
+                reservationId:
+                  type: string
+      responses:
+        "200":
+          description: Payment confirmed and booking created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          bookingId:
+                            type: string
+                          eventName:
+                            type: string
+                          eventDate:
+                            type: string
+                            format: date-time
+                          venue:
+                            type: string
+                          ticketCount:
+                            type: integer
+                          totalPrice:
+                            type: number
+                          paymentIntentId:
+                            type: string
+        "400":
+          description: Payment verification failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # User Profile Routes
+  /api/user/profile:
+    get:
+      tags:
+        - User Profile
+      summary: Get current user's profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - User Profile
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        "200":
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid input or current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/user/profile/change-password:
+    patch:
+      tags:
+        - User Profile
+      summary: Change user password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: Current password incorrect or invalid new password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/user/stats:
+    get:
+      tags:
+        - User Profile
+      summary: Get user booking statistics
+      responses:
+        "200":
+          description: User statistics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BookingStats"
+
+  # Admin Event Routes
+  /api/admin/events:
+    post:
+      tags:
+        - Admin Events
+      summary: Create a new event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+                - venueName
+                - venueAddress
+                - venueCity
+                - venueState
+                - venueCountry
+                - venuePincode
+                - startTime
+                - endTime
+                - totalCapacity
+                - price
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                venueName:
+                  type: string
+                venueAddress:
+                  type: string
+                venueCity:
+                  type: string
+                venueState:
+                  type: string
+                venueCountry:
+                  type: string
+                venuePincode:
+                  type: string
+                venueCoordinates:
+                  type: object
+                  properties:
+                    lat:
+                      type: number
+                    lng:
+                      type: number
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+                totalCapacity:
+                  type: integer
+                  minimum: 1
+                price:
+                  type: number
+                  minimum: 0
+      responses:
+        "201":
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Event"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/admin/events/{id}:
+    patch:
+      tags:
+        - Admin Events
+      summary: Update an event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Event ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                venueName:
+                  type: string
+                venueAddress:
+                  type: string
+                venueCity:
+                  type: string
+                venueState:
+                  type: string
+                venueCountry:
+                  type: string
+                venuePincode:
+                  type: string
+                venueCoordinates:
+                  type: object
+                  properties:
+                    lat:
+                      type: number
+                    lng:
+                      type: number
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+                totalCapacity:
+                  type: integer
+                price:
+                  type: number
+                status:
+                  type: string
+                  enum: [ACTIVE, CANCELLED, COMPLETED]
+                isBookingEnabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Event updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Event"
+        "400":
+          description: Invalid input or event cannot be modified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden - not the event creator or not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Admin Events
+      summary: Delete an event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Event ID
+      responses:
+        "200":
+          description: Event deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: Cannot delete event with active bookings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden - not the event creator or not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # Admin Analytics Routes
+  /api/admin/analytics/bookings:
+    get:
+      tags:
+        - Admin Analytics
+      summary: Get booking analytics for events created by the admin
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: Filter by start date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: Filter by end date
+      responses:
+        "200":
+          description: Booking analytics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnalyticsData"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/admin/analytics/events/{id}:
+    get:
+      tags:
+        - Admin Analytics
+      summary: Get analytics for a specific event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Event ID
+      responses:
+        "200":
+          description: Event analytics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          eventId:
+                            type: string
+                          eventName:
+                            type: string
+                          totalCapacity:
+                            type: integer
+                          availableCapacity:
+                            type: integer
+                          totalBookings:
+                            type: integer
+                          confirmedBookings:
+                            type: integer
+                          ticketsSold:
+                            type: integer
+                          utilizationRate:
+                            type: string
+                          totalRevenue:
+                            type: number
+                            format: float
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden - not the event creator or not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"

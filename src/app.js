@@ -3,6 +3,7 @@ const morgan = require("morgan");
 
 const ApiResponse = require("./utils/responseFormatter");
 const { apiLimiter } = require("./middlewares/rateLimiter");
+const swagger = require("./config/swagger");
 
 const authRoutes = require("./routes/auth/auth.routes");
 const adminRoutes = require("./routes/admin");
@@ -18,6 +19,10 @@ const app = express();
 app.use(express.json());
 app.use(morgan("dev"));
 app.use(apiLimiter);
+
+// API Documentation - place before other routes
+app.use("/api-docs", swagger.serve, swagger.setup);
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
@@ -25,6 +30,11 @@ app.use("/api/events", userEventRoutes);
 app.use("/api/bookings", userBookingRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/user/profile", userProfileRoutes);
+
+// Add a redirect from root to docs
+app.get("/", (req, res) => {
+  res.redirect("/api-docs");
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
